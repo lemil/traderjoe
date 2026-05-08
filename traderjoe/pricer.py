@@ -6,6 +6,7 @@ options chain) from Yahoo Finance and returns the theoretical price and
 Greeks for the requested contract.
 """
 
+import dataclasses
 import math
 import sys
 from dataclasses import dataclass
@@ -32,6 +33,10 @@ class PriceResult:
     bs_price: float
     market_mid: float | None  # bid/ask midpoint, or None if unavailable
     greeks: Greeks
+
+    def to_dict(self) -> dict:
+        d = dataclasses.asdict(self)
+        return d
 
 
 # ── market data helpers ───────────────────────────────────────────────────────

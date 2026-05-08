@@ -1,5 +1,6 @@
 """Download option chains and structure them as a Strike × Expiry matrix."""
 
+import dataclasses
 import math
 from dataclasses import dataclass, field
 from datetime import date, datetime
@@ -10,6 +11,13 @@ from traderjoe.black_scholes import black_scholes, implied_volatility
 
 
 # ── data model ───────────────────────────────────────────────────────────────
+
+def _nan_to_none(v):
+    """Return None for NaN floats so they serialise as JSON null."""
+    if isinstance(v, float) and math.isnan(v):
+        return None
+    return v
+
 
 @dataclass(frozen=True)
 class OptionCell:
@@ -29,6 +37,10 @@ class OptionCell:
     vega:          float
     itm:           bool
 
+    def to_dict(self) -> dict:
+        d = dataclasses.asdict(self)
+        return {k: _nan_to_none(v) for k, v in d.items()}
+
 
 @dataclass
 class OptionMatrix:
@@ -40,6 +52,18 @@ class OptionMatrix:
     strikes:     list[float]  # sorted
     expiries:    list[str]    # sorted YYYY-MM-DD
     cells:       dict         # (expiry, strike) -> OptionCell
+
+    def to_dict(self) -> dict:
+        return {
+            "symbol": self.symbol,
+            "option_type": self.option_type,
+            "spot": self.spot,
+            "rate": self.rate,
+            "as_of": self.as_of.isoformat(),
+            "strikes": self.strikes,
+            "expiries": self.expiries,
+            "cells": [cell.to_dict() for cell in self.cells.values()],
+        }
 
     def get(self, expiry: str, strike: float) -> OptionCell | None:
         return self.cells.get((expiry, strike))
@@ -70,6 +94,13 @@ def _risk_free_rate(timeout: int = 10) -> float:
     except Exception:
         pass
     return 0.05
+
+
+def _isnan(v) -> bool:
+    try:
+        return math.isnan(v)
+    except (TypeError, ValueError):
+        return False
 
 
 def _time_to_expiry(expiry_str: str) -> float:
@@ -177,8 +208,8 @@ def download_option_chain(
             bid    = float(row.get("bid", 0) or 0)
             ask    = float(row.get("ask", 0) or 0)
             last   = float(row.get("lastPrice", 0) or 0)
-            vol    = int(row.get("volume", 0) or 0)
-            oi     = int(row.get("openInterest", 0) or 0)
+            vol    = int(row.get("volume") or 0) if not _isnan(row.get("volume")) else 0
+            oi     = int(row.get("openInterest") or 0) if not _isnan(row.get("openInterest")) else 0
             iv_mkt = float(row.get("impliedVolatility", float("nan")) or float("nan"))
 
             if vol < min_volume:
