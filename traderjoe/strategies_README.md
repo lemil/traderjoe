@@ -80,12 +80,56 @@ print(st.payoff(100))   # P&L at expiry if stock stays at 100
 st.name          # "Iron Condor"
 st.legs          # list[Leg]
 st.spot          # 100.0
+st.T             # time to expiry (years)
+st.r             # risk-free rate
+st.sigma         # implied / historical vol
 st.net_premium   # per share: >0 = debit, <0 = credit
 st.max_profit    # per lot (100 shares); float('inf') = unlimited
 st.max_loss      # per lot; float('-inf') = unlimited
 st.breakevens    # list[float]
+st.probabilities # Probabilities object (see below)
+st.risk          # RiskMetrics object (see below)
 st.payoff(S_T)   # P&L per lot at expiry price S_T
 ```
+
+### Probabilities object
+
+```python
+p = st.probabilities
+p.prob_profit      # P(P&L > 0 at expiry), risk-neutral
+p.prob_max_profit  # P(S_T in max-profit zone); nan if unlimited
+p.prob_max_loss    # P(S_T in max-loss zone);   nan if unlimited
+```
+
+Probabilities are computed under the risk-neutral (Q) measure using the
+log-normal distribution of `S_T` implied by Black-Scholes.
+
+### RiskMetrics object
+
+```python
+rm = st.risk
+
+# Aggregate Greeks (per lot = 100 shares)
+rm.delta   # $ P&L change per $1 move in underlying
+rm.gamma   # delta change per $1 move in underlying
+rm.theta   # $ time decay per calendar day
+rm.vega    # $ change per 1 percentage-point increase in vol
+rm.rho     # $ change per 1 percentage-point increase in rate
+
+# Risk-neutral expected values (per lot)
+rm.expected_pnl      # E^Q[payoff at expiry]
+rm.expected_profit   # E^Q[payoff × 1(payoff > 0)]
+rm.expected_loss     # E^Q[payoff × 1(payoff ≤ 0)]
+
+# Reward / risk
+rm.reward_risk_ratio  # max_profit / |max_loss|
+                      # inf  when max_profit unlimited, max_loss bounded
+                      # 0.0  when max_loss unlimited, max_profit bounded
+                      # nan  when both unlimited
+```
+
+Expected values are computed by numerically integrating the payoff function
+weighted by the log-normal PDF over ±5σ√T from spot.
 
 ### Leg object
 
@@ -152,4 +196,4 @@ Payoff is evaluated **at the near expiry** (`T1`) with the far-dated option pric
 PYTHONPATH=. python3 -m pytest tests/test_strategies.py -v
 ```
 
-196 tests: 7 parametrised checks × 24 strategies + 28 strategy-specific tests.
+326 tests: 12 parametrised checks × 24 strategies + 38 strategy-specific tests.

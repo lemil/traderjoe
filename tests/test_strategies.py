@@ -3,7 +3,7 @@
 import math
 import pytest
 from traderjoe.strategies import (
-    Strategy, Leg,
+    Strategy, Leg, Probabilities, RiskMetrics,
     bull_call_spread, bear_put_spread, bull_put_spread, bear_call_spread,
     long_straddle, short_straddle, long_strangle, short_strangle,
     iron_condor, iron_butterfly, covered_call, cash_secured_put,
@@ -225,3 +225,91 @@ def test_diagonal_spread_returns_strategy():
 def test_christmas_tree_unlimited_loss():
     st = christmas_tree(S, K_low, K_atm, K_high, T, r, sigma)
     assert st.max_loss == float("-inf")
+
+
+# ── RiskMetrics tests ─────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("name,factory", ALL_STRATEGIES)
+def test_has_risk_metrics(name, factory):
+    st = factory()
+    assert isinstance(st.risk, RiskMetrics)
+
+
+@pytest.mark.parametrize("name,factory", ALL_STRATEGIES)
+def test_risk_greeks_finite(name, factory):
+    rm = factory().risk
+    for greek in (rm.delta, rm.gamma, rm.theta, rm.vega, rm.rho):
+        assert math.isfinite(greek)
+
+
+@pytest.mark.parametrize("name,factory", ALL_STRATEGIES)
+def test_risk_expected_pnl_finite(name, factory):
+    rm = factory().risk
+    assert math.isfinite(rm.expected_pnl)
+    assert math.isfinite(rm.expected_profit)
+    assert math.isfinite(rm.expected_loss)
+
+
+@pytest.mark.parametrize("name,factory", ALL_STRATEGIES)
+def test_risk_expected_pnl_splits(name, factory):
+    rm = factory().risk
+    assert rm.expected_profit >= 0
+    assert rm.expected_loss <= 0
+    assert abs(rm.expected_pnl - (rm.expected_profit + rm.expected_loss)) < 1.0
+
+
+@pytest.mark.parametrize("name,factory", ALL_STRATEGIES)
+def test_risk_reward_risk_ratio_valid(name, factory):
+    st = factory()
+    rr = st.risk.reward_risk_ratio
+    if math.isinf(st.max_profit) and math.isinf(st.max_loss):
+        assert math.isnan(rr)
+    elif math.isinf(st.max_profit):
+        assert math.isinf(rr) and rr > 0
+    elif math.isinf(st.max_loss):
+        assert rr == 0.0
+    else:
+        assert math.isfinite(rr) and rr >= 0
+
+
+def test_iron_condor_reward_risk_positive():
+    st = iron_condor(S, K1, K2, K3, K4, T, r, sigma)
+    assert st.risk.reward_risk_ratio > 0
+
+def test_bull_call_spread_delta_positive():
+    st = bull_call_spread(S, K_low, K_high, T, r, sigma)
+    assert st.risk.delta > 0
+
+def test_bear_call_spread_delta_negative():
+    st = bear_call_spread(S, K_low, K_high, T, r, sigma)
+    assert st.risk.delta < 0
+
+def test_long_straddle_gamma_positive():
+    st = long_straddle(S, K_atm, T, r, sigma)
+    assert st.risk.gamma > 0
+
+def test_short_straddle_gamma_negative():
+    st = short_straddle(S, K_atm, T, r, sigma)
+    assert st.risk.gamma < 0
+
+def test_long_straddle_vega_positive():
+    st = long_straddle(S, K_atm, T, r, sigma)
+    assert st.risk.vega > 0
+
+def test_short_straddle_theta_positive():
+    st = short_straddle(S, K_atm, T, r, sigma)
+    assert st.risk.theta > 0  # short options earn time decay (positive theta)
+
+def test_covered_call_delta_less_than_stock():
+    st = covered_call(S, K_high, T, r, sigma)
+    assert 0 < st.risk.delta < 100  # partial delta from short call
+
+def test_calendar_spread_risk_metrics():
+    st = calendar_spread(S, K_atm, T, T * 2, r, sigma)
+    assert isinstance(st.risk, RiskMetrics)
+    assert math.isfinite(st.risk.delta)
+
+def test_diagonal_spread_risk_metrics():
+    st = diagonal_spread(S, K_atm, K_high, T, T * 2, r, sigma)
+    assert isinstance(st.risk, RiskMetrics)
+    assert math.isfinite(st.risk.delta)
