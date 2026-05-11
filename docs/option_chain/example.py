@@ -6,23 +6,34 @@ Usage:
     PYTHONPATH=. python3 example.py TSLA put
 """
 
+import json
 import sys
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 from traderjoe.option_chain import download_option_chain, pretty_print_matrix
 
 # ── config ────────────────────────────────────────────────────────────────────
-symbol      = sys.argv[1] if len(sys.argv) > 1 else "AAPL"
-option_type = sys.argv[2] if len(sys.argv) > 2 else "call"
+_args       = [a for a in sys.argv[1:] if not a.startswith("--")]
+as_json     = "--json" in sys.argv
+symbol      = _args[0] if _args else "AAPL"
+option_type = _args[1] if len(_args) > 1 else "call"
 MAX_EXPIRIES = 4
 MAX_STRIKES  = 12
 
 # ── 1. download ───────────────────────────────────────────────────────────────
-print(f"\nDownloading {symbol} {option_type} chain …")
+if not as_json:
+    print(f"\nDownloading {symbol} {option_type} chain …")
 matrix = download_option_chain(
     symbol,
     option_type=option_type,
     max_expiries=MAX_EXPIRIES,
     min_volume=10,
 )
+
+if as_json:
+    print(json.dumps(matrix.to_dict(), indent=2))
+    sys.exit(0)
 
 print(f"  {len(matrix.strikes)} strikes  ×  {len(matrix.expiries)} expiries  "
       f"=  {len(matrix.cells)} contracts")
@@ -35,9 +46,10 @@ pretty_print_matrix(matrix, field="mid",
 pretty_print_matrix(matrix, field="iv",
                     max_strikes=MAX_STRIKES, max_expiries=MAX_EXPIRIES)
 
-# ── 4. print delta surface ────────────────────────────────────────────────────
-pretty_print_matrix(matrix, field="delta",
-                    max_strikes=MAX_STRIKES, max_expiries=MAX_EXPIRIES)
+# ── 4. print Greeks surfaces ─────────────────────────────────────────────────
+for greek in ("delta", "gamma", "theta", "vega"):
+    pretty_print_matrix(matrix, field=greek,
+                        max_strikes=MAX_STRIKES, max_expiries=MAX_EXPIRIES)
 
 # ── 5. inspect a single cell ──────────────────────────────────────────────────
 expiry = matrix.expiries[0]

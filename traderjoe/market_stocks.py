@@ -1,6 +1,7 @@
 """Fetch all US-listed equity symbols from NASDAQ Trader public data."""
 
 import csv
+import dataclasses
 import io
 import time
 import urllib.request
@@ -28,6 +29,9 @@ class Stock:
     market_category: str   # NASDAQ only: Q=Global Select, G=Global, S=Capital
     etf: bool
     test_issue: bool
+
+    def to_dict(self) -> dict:
+        return dataclasses.asdict(self)
 
 
 def _fetch(url: str, timeout: int = 15) -> str:

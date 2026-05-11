@@ -8,6 +8,7 @@ Usage:
 """
 
 import argparse
+import json
 import sys
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -23,10 +24,12 @@ def main():
     parser.add_argument("--strike", type=float, help="Strike price (default: ATM)")
     parser.add_argument("--type", dest="option_type", choices=["call", "put"], default="call")
     parser.add_argument("--vol-window", type=int, default=30, help="Days of history for HV (default: 30)")
+    parser.add_argument("--json", action="store_true", help="Output result as JSON instead of formatted text")
     args = parser.parse_args()
 
-    print(f"\nFetching Black-Scholes parameters for {args.symbol.upper()} ({args.option_type.upper()})")
-    print("─" * 55)
+    if not args.json:
+        print(f"\nFetching Black-Scholes parameters for {args.symbol.upper()} ({args.option_type.upper()})")
+        print("─" * 55)
 
     result = price_option(
         args.symbol,
@@ -35,6 +38,10 @@ def main():
         option_type=args.option_type,
         vol_window=args.vol_window,
     )
+
+    if args.json:
+        print(json.dumps(result.to_dict(), indent=2))
+        return
 
     moneyness = (
         "ATM" if abs(result.K - result.S) / result.S < 0.01

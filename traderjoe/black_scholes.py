@@ -1,5 +1,6 @@
 """Black-Scholes option pricing model."""
 
+import dataclasses
 import math
 from dataclasses import dataclass
 from statistics import NormalDist
@@ -16,6 +17,9 @@ class Greeks:
     theta: float  # per calendar day
     vega: float   # per 1-point move in vol (not per 1%)
     rho: float    # per 1-point move in rate (not per 1%)
+
+    def to_dict(self) -> dict:
+        return dataclasses.asdict(self)
 
 
 def _d1_d2(S: float, K: float, T: float, r: float, sigma: float) -> tuple[float, float]:
